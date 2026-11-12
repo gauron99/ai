@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Code Stepper</title>
+<style>
+  :root{
+    --bg:#1e1f29; --node:#282a36; --line:#6272a4; --ink:#f8f8f2;
+    --arrow:#8895b3; --muted:#b0b8d1; --accent:#bd93f9;
+    --green:#50fa7b; --amber:#ffb86c; --red:#ff5555; --cyan:#8be9fd; --pink:#ff79c6; --yellow:#f1fa8c;
+    --cur:#3b3f58; --ran:#2c2f40;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:14px;}
+  .page{max-width:1500px;margin:0 auto;padding:20px 16px 48px;}
+  h1{font-size:19px;font-weight:600;margin:0 0 4px;}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 14px;}
+  .tabs{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;}
+  .group{display:flex;flex-direction:column;gap:6px;}
+  .group h2{font-size:12px;color:var(--muted);font-weight:500;margin:0;text-transform:uppercase;letter-spacing:.05em;}
+  .group .row{display:flex;flex-wrap:wrap;gap:6px;}
+  .tab{background:var(--node);border:1px solid var(--line);color:var(--ink);border-radius:6px;
+       padding:6px 10px;font:inherit;font-size:13px;cursor:pointer;}
+  .tab.before{border-style:dashed;}
+  .tab.on{border-color:var(--accent);background:#3a2f55;}
+  .intro{background:var(--node);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:10px;}
+  .intro p{margin:0;line-height:1.5;}
+  .intro .note{margin-top:8px;color:var(--amber);}
+  .controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0;}
+  .controls button{background:var(--node);border:1px solid var(--line);color:var(--ink);border-radius:6px;
+       padding:5px 10px;font:inherit;cursor:pointer;}
+  .controls button:hover{border-color:var(--accent);}
+  .controls .count{color:var(--muted);font-size:13px;}
+  .controls .keys{color:var(--muted);font-size:12px;margin-left:auto;}
+  .strip{display:flex;gap:1px;height:22px;margin:4px 0 4px;cursor:pointer;}
+  .strip div{flex:1 1 0;min-width:2px;border-radius:2px;opacity:.55;position:relative;}
+  .strip div.on{opacity:1;outline:2px solid var(--ink);outline-offset:1px;z-index:1;}
+  .strip div.chg::after{content:"";position:absolute;left:50%;top:-5px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--ink);}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-bottom:12px;}
+  .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;background:var(--c);}
+  .grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:start;}
+  @media (max-width:1000px){.grid{grid-template-columns:1fr;}}
+  .pane{background:var(--node);border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .pane h3{font-size:12px;font-weight:600;color:var(--muted);margin:0;padding:8px 12px;border-bottom:1px solid var(--line);
+           text-transform:uppercase;letter-spacing:.05em;}
+  .stack{padding:8px 12px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--line);line-height:1.6;}
+  .stack b{color:var(--ink);font-weight:600;}
+  .stack .sep{margin:0 6px;color:var(--line);}
+  .where{padding:4px 12px 8px;font-size:12px;color:var(--muted);}
+  .code{margin:0;padding:6px 0 10px;overflow-x:auto;font-size:13px;line-height:1.55;}
+  .ln{display:flex;white-space:pre;padding-right:12px;}
+  .ln .no{flex:0 0 46px;text-align:right;padding-right:6px;color:#6c7393;user-select:none;}
+  .ln .pr{flex:0 0 16px;text-align:center;color:var(--green);user-select:none;}
+  .ln .mark{flex:0 0 18px;text-align:center;user-select:none;}
+  .ln.cur{background:var(--cur);}
+  .ln.cur .mark{color:var(--yellow);}
+  .ln.ran{background:var(--ran);}
+  .ln.ran .mark{color:var(--muted);}
+  .ln.prline .txt{color:#e6ffe9;}
+  .kw{color:var(--pink);} .str{color:var(--yellow);} .com{color:#7f88a8;}
+  .box{padding:10px 12px;border-bottom:1px solid var(--line);}
+  .box:last-child{border-bottom:0;}
+  .box h4{margin:0 0 6px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;}
+  .happened ul{margin:0;padding-left:18px;line-height:1.55;}
+  .happened li{margin:2px 0;}
+  .none{color:var(--muted);}
+  .explain p{margin:0;line-height:1.55;}
+  .explain .empty{color:var(--muted);}
+  .vars table{border-collapse:collapse;width:100%;}
+  .vars td{vertical-align:top;padding:4px 6px;border-top:1px solid #353849;}
+  .vars tr:first-child td{border-top:0;}
+  .vars td.n{white-space:nowrap;color:var(--cyan);width:1%;}
+  .vars td.n small{display:block;color:#6c7393;font-size:12px;}
+  .vars tr.new td{background:rgba(80,250,123,.08);}
+  .vars tr.chg td{background:rgba(255,184,108,.10);}
+  .tag{font-size:11px;border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px;}
+  .tag.new{background:rgba(80,250,123,.2);color:var(--green);}
+  .tag.chg{background:rgba(255,184,108,.22);color:var(--amber);}
+  .v-str{color:var(--yellow);word-break:break-all;}
+  .v-num{color:var(--accent);}
+  .v-nil{color:#7f88a8;font-style:italic;}
+  .v-type{color:#7f88a8;font-size:12px;}
+  .v-addr{color:#7f88a8;font-size:12px;}
+  .map{border-collapse:collapse;margin-top:2px;}
+  .map td{padding:2px 6px;border:1px solid #3d4157;vertical-align:top;}
+  .map td.k{white-space:nowrap;}
+  .map tr.added td{background:rgba(80,250,123,.12);}
+  .chips{display:inline-flex;flex-wrap:wrap;gap:4px;}
+  .chip{border:1px solid #4a4f6a;border-radius:4px;padding:0 5px;font-size:12.5px;}
+  .chip.good{border-color:#3f7a52;}
+  .chip.dim{color:var(--muted);border-style:dashed;}
+  .chip.none{color:#7f88a8;font-style:italic;}
+  details{margin:2px 0;}
+  summary{cursor:pointer;color:var(--muted);}
+  .fields{margin-left:14px;}
+  .fields div{margin:1px 0;}
+  .fields .f{color:var(--cyan);}
+  pre.data{margin:2px 0;white-space:pre-wrap;word-break:break-all;color:var(--yellow);font-size:12.5px;}
+  .hint{color:var(--muted);font-size:12px;margin-top:4px;}
+  code{background:#353849;border-radius:3px;padding:0 4px;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 id="title">Step through the code</h1>
+  <p class="sub" id="sub"></p>
+  <div class="tabs" id="tabs"></div>
+  <div class="intro" id="intro"></div>
+  <div class="controls">
+    <button id="first" title="First step (Home)">|&lt;</button>
+    <button id="prevchg" title="Previous step that changed something (Shift+Left)">&lt;&lt; change</button>
+    <button id="prev" title="Previous step (Left)">&lt; prev</button>
+    <button id="next" title="Next step (Right)">next &gt;</button>
+    <button id="nextchg" title="Next step that changed something (Shift+Right)">change &gt;&gt;</button>
+    <button id="last" title="Last step (End)">&gt;|</button>
+    <span class="count" id="count"></span>
+    <span class="keys">keys: Left / Right step, Shift jumps to the next change</span>
+  </div>
+  <div class="strip" id="strip"></div>
+  <div class="legend" id="legend"></div>
+  <div class="grid">
+    <div class="pane">
+      <h3>Code</h3>
+      <div class="stack" id="stack"></div>
+      <div class="where" id="where"></div>
+      <div class="code" id="code"></div>
+    </div>
+    <div class="pane">
+      <h3>State</h3>
+      <div class="box happened"><h4>What the last step did</h4><div id="happened"></div></div>
+      <div class="box explain"><h4>The highlighted line</h4><div id="explain"></div></div>
+      <div class="box vars"><h4>Variables in <span id="varsfn"></span></h4><div id="vars"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// render.py fills DATA: {title, revision, meta, traces, changed, notes}.
+const DATA = /*DATA*/null;
+const NOTES = DATA.notes || {};
+
+const COLORS = ['#bd93f9','#50fa7b','#ffb86c','#8be9fd','#ff79c6','#f1fa8c','#ff5555','#6272a4'];
+let traceIdx = 0, stepIdx = 0, fnColor = {};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const shortType = t => (t || '').replace(/(?:[\w.\-]+\/)+(?=[\w]+\.)/g, '');
+const typeKey = v => shortType(v && v.t).replace(/^\*/, '');
+const shortFn = f => (f || '').split('/').pop().replace(/^[^.]+\./, '');
+const isNil = v => v.v === null && !v.map && !v.list && !v.fields;
+const isZero = v => !v || isNil(v) || v.v === '' || v.v === 'false' || v.v === '0' ||
+  (v.fields && v.fields.every(([, f]) => isZero(f))) || (v.map && v.map.length === 0);
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const cut = (s, n = 80) => s.length > n ? s.slice(0, n - 3) + '...' : s;
+
+function field(v, name) {
+  const f = v && v.fields && v.fields.find(([n]) => n === name);
+  return f ? f[1] : null;
+}
+function str(v) { return v && typeof v.v === 'string' ? v.v : ''; }
+
+// ---------- custom views ----------
+// RENDERERS['pkg.Type'] = {full(v, h, depth, prev) -> html, short(v, h) -> text, leaf}
+// The key is the Go type without its import path or leading '*', such as
+// 'types.AuthConfig'. leaf: true reports a change as one line, old -> new,
+// instead of field by field. render.py pastes the project's renderers.js below.
+const RENDERERS = {};
+const H = {esc, field, str, shortType, render: (...a) => render(...a), fmt1: v => fmt1(v),
+           renderMap: (...a) => renderMap(...a)};
+/*RENDERERS*/
+
+// ---------- value rendering ----------
+function renderData(s) {
+  try { return `<pre class="data">${esc(JSON.stringify(JSON.parse(s), null, 1))}</pre>`; } catch (e) {}
+  return s.includes('\n') ? `<pre class="data">${esc(s)}</pre>` : `<span class="v-str">${esc(JSON.stringify(s))}</span>`;
+}
+
+function renderMap(v, depth, prev) {
+  if (!v || (v.v === null && !v.map)) return '<span class="v-nil">nil map</span>';
+  // trace.py replaces addresses with labels: the same label is the same map.
+  const addr = v.addr ? ` <span class="v-addr" title="the same label means the same map">map ${esc(v.addr)}</span>` : '';
+  if (v.cut) return `<span class="v-type">${esc(shortType(v.t))}, ${v.len} entries, too many to load (raise "load" to see them)</span>${addr}`;
+  if (!v.map.length) return `<span class="v-nil">empty map</span>${addr}`;
+  const before = prev && prev.map ? new Set(prev.map.map(([k]) => JSON.stringify(k))) : null;
+  const rows = v.map.map(([k, val]) => {
+    const added = before && !before.has(JSON.stringify(k));
+    const old = prev && prev.map && (prev.map.find(([pk]) => same(pk, k)) || [])[1];
+    return `<tr class="${added ? 'added' : ''}"><td class="k">${render(k, depth + 1)}${added ? '<span class="tag new">added</span>' : ''}</td><td>${render(val, depth + 1, old)}</td></tr>`;
+  }).join('');
+  const more = v.len > v.map.length ? `, showing ${v.map.length}` : '';
+  return `<span class="v-type">${esc(shortType(v.t))}, ${v.len ?? v.map.length} ${(v.len ?? v.map.length) === 1 ? 'entry' : 'entries'}${more}</span>${addr}<table class="map">${rows}</table>`;
+}
+
+function renderStruct(v, depth, prev) {
+  const t = shortType(v.t);
+  const shown = v.fields.filter(([, f]) => !isZero(f));
+  const hidden = v.fields.length - shown.length;
+  const inner = shown.map(([n, f]) => `<div><span class="f">${esc(n)}</span>: ${render(f, depth + 1, field(prev, n))}</div>`).join('') +
+    (hidden ? `<div class="v-type">${hidden} empty field${hidden === 1 ? '' : 's'} hidden</div>` : '');
+  if (depth >= 1 && shown.length > 2) return `<details><summary>${esc(t)}{...}</summary><div class="fields">${inner}</div></details>`;
+  return `<span class="v-type">${esc(t)}</span><div class="fields">${inner || '<div class="v-type">all fields empty</div>'}</div>`;
+}
+
+function render(v, depth = 0, prev = null) {
+  if (!v) return '<span class="v-nil">?</span>';
+  const t = typeKey(v);
+  const ptr = v.ptr ? `<span class="v-type">pointer to </span>` : '';
+  if (isNil(v)) return `<span class="v-nil">nil</span> <span class="v-type">${esc(shortType(v.iface || v.t))}</span>`;
+  const r = RENDERERS[t];
+  if (r && r.full) return ptr + r.full(v, H, depth, prev);
+  if (t === 'url.URL') return `<span class="v-str">${esc(str(field(v, 'Scheme')) + '://' + str(field(v, 'Host')) + str(field(v, 'Path')))}</span> <span class="v-type">url.URL</span>`;
+  if (t === '[]uint8') return renderData(v.v) + ' <span class="v-type">[]byte</span>';
+  if (v.map) return renderMap(v, depth, prev);
+  if (v.list) {
+    const more = v.len > v.list.length ? `, showing ${v.list.length} of ${v.len}` : '';
+    if (v.list.every(x => x.k === 24)) return `[${v.list.map(x => `<span class="v-str">${esc(JSON.stringify(x.v))}</span>`).join(', ')}] <span class="v-type">${esc(shortType(v.t))}${more}</span>`;
+    if (!v.list.length) return `<span class="v-nil">empty</span> <span class="v-type">${esc(shortType(v.t))}</span>`;
+    if (depth >= 2) return `<span class="v-type">${esc(shortType(v.t))}, ${v.len ?? v.list.length} items</span>`;
+    return `<span class="v-type">${esc(shortType(v.t))}${more}</span><div class="fields">${v.list.map((x, i) => `<div><span class="f">[${i}]</span> ${render(x, depth + 1, prev && prev.list && prev.list[i])}</div>`).join('')}</div>`;
+  }
+  if (v.fields) {
+    if (depth >= 3) return `<span class="v-type">${esc(t)}{...}</span>`;
+    return ptr + renderStruct(v, depth, prev);
+  }
+  if (v.k === 24 || t === 'string') return `<span class="v-str">${esc(JSON.stringify(v.v))}</span>${t !== 'string' ? ` <span class="v-type">${esc(t)}</span>` : ''}`;
+  if (v.k === 1) return `<span class="v-num">${esc(v.v)}</span>`;
+  if (v.k === 19) return `<span class="v-type">func ${esc(t)}</span>`;
+  return `<span class="v-num">${esc(v.v)}</span> <span class="v-type">${esc(t)}</span>`;
+}
+
+// One-line text form, for the "what happened" list.
+function fmt1(v) {
+  if (!v) return '?';
+  if (isNil(v)) return 'nil';
+  const t = typeKey(v);
+  const r = RENDERERS[t];
+  if (r && r.short) return r.short(v, H);
+  if (t === '[]uint8') return cut(JSON.stringify(v.v));
+  if (v.map) {
+    if (!v.map.length) return 'empty map';
+    const ks = v.map.slice(0, 6).map(([k]) => fmt1(k));
+    return `map{${ks.join(', ')}${v.map.length > 6 ? ', ...' : ''}}`;
+  }
+  if (v.list) {
+    if (v.list.every(x => x.k === 24)) return cut(`[${v.list.map(x => JSON.stringify(x.v)).join(', ')}]`, 120);
+    return `${shortType(v.t)} (${v.len ?? v.list.length} items)`;
+  }
+  if (t === 'url.URL') return str(field(v, 'Scheme')) + '://' + str(field(v, 'Host')) + str(field(v, 'Path'));
+  if (v.fields) {
+    const set = v.fields.filter(([, f]) => !isZero(f));
+    // Small structs of plain values show them: Item{Name: "apple", Price: 3}.
+    const plain = set.every(([, f]) => !f.map && !f.list && !f.fields);
+    const full = set.map(([n, f]) => `${n}: ${fmt1(f)}`).join(', ');
+    if (plain && full.length <= 70) return `${t}{${full}}`;
+    return set.length ? `${t}{${cut(set.map(([n]) => n).join(', '), 60)} set}` : `${t}{}`;
+  }
+  if (v.k === 24) return cut(JSON.stringify(v.v));
+  return String(v.v);
+}
+
+// ---------- what changed ----------
+const sameFrame = (a, b) => a && b && a.fn === b.fn && a.stack.length === b.stack.length && a.range[0] === b.range[0];
+const vars = s => new Map([...s.args, ...s.locals]);
+const code = s => `<code>${esc(s)}</code>`;
+
+// Walk two values of one variable and say what changed, down to the field,
+// map key or list item: "cf.AuthConfigs gained key ...", "keys appended ...".
+function diffVal(path, a, b, out, depth = 0) {
+  if (same(a, b)) return;
+  if (a && b && depth <= 4 && !(RENDERERS[typeKey(b)] || {}).leaf) {
+    if (b.list && isNil(a)) a = {t: b.t, list: []};
+    if (a.map && b.map) {
+      const ka = new Map(a.map.map(([k, v]) => [JSON.stringify(k), v]));
+      const kb = new Set(b.map.map(([k]) => JSON.stringify(k)));
+      const n0 = out.length;
+      for (const [k, v] of b.map) {
+        const id = JSON.stringify(k);
+        if (!ka.has(id)) out.push(`${code(path)} gained key <span class="v-str">${esc(fmt1(k))}</span> = ${esc(fmt1(v))}`);
+        else diffVal(`${path}[${fmt1(k)}]`, ka.get(id), v, out, depth + 1);
+      }
+      for (const [k] of a.map) if (!kb.has(JSON.stringify(k))) out.push(`${code(path)} lost key ${esc(fmt1(k))}`);
+      if (out.length === n0 && a.addr !== b.addr) out.push(`${code(path)} now holds a different map`);
+      return;
+    }
+    if (a.list && b.list) {
+      const n = a.list.length;
+      if (b.list.length > n && a.list.every((x, i) => same(x, b.list[i]))) {
+        for (const x of b.list.slice(n)) out.push(`${code(path)} appended ${esc(fmt1(x))}`);
+        return;
+      }
+      if (b.list.length === n) {
+        b.list.forEach((x, i) => diffVal(`${path}[${i}]`, a.list[i], x, out, depth + 1));
+        return;
+      }
+    }
+    if (a.fields && b.fields && a.t === b.t) {
+      const n0 = out.length;
+      const fa = new Map(a.fields);
+      for (const [n, f] of b.fields) diffVal(`${path}.${n}`, fa.get(n), f, out, depth + 1);
+      if (out.length === n0 && a.ptr !== b.ptr) out.push(`${code(path)} now points to another ${esc(typeKey(b))}`);
+      return;
+    }
+  }
+  out.push(`${code(path)}: ${esc(fmt1(a))} &rarr; ${esc(fmt1(b))}`);
+}
+
+function changes(prev, cur) {
+  const out = [];
+  if (!prev || !sameFrame(prev, cur)) return out;
+  const a = vars(prev);
+  for (const [n, v] of vars(cur)) {
+    if (!a.has(n)) { out.push(`new variable ${code(n)} = ${esc(fmt1(v))}`); continue; }
+    const o = [];
+    diffVal(n, a.get(n), v, o);
+    out.push(...o.slice(0, 8));
+    if (o.length > 8) out.push(`${code(n)}: ${o.length - 8} more changes`);
+  }
+  return out;
+}
+
+function changedNames(prev, cur) {
+  const s = new Map();
+  if (!prev || !sameFrame(prev, cur)) return s;
+  const a = vars(prev);
+  for (const [n, v] of vars(cur)) {
+    if (!a.has(n)) s.set(n, 'new');
+    else if (!same(a.get(n), v)) s.set(n, 'chg');
+  }
+  return s;
+}
+
+// ---------- page ----------
+function highlight(line) {
+  let s = esc(line);
+  s = s.replace(/(\/\/.*)$/, '<span class="com">$1</span>');
+  s = s.replace(/(&quot;[^&]*?&quot;)/g, '<span class="str">$1</span>');
+  s = s.replace(/\b(func|return|if|else|for|range|var|const|type|struct|interface|map|chan|go|defer|select|switch|case|default|break|continue|goto|fallthrough|nil|true|false)\b/g, '<span class="kw">$1</span>');
+  return s;
+}
+
+function buildTabs() {
+  const groups = new Map();
+  DATA.traces.forEach((t, i) => { const g = t.group || 'Scenarios'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(i); });
+  $('tabs').innerHTML = [...groups].map(([g, idx]) =>
+    `<div class="group"><h2>${esc(g)}</h2><div class="row">${idx.map(i => {
+      const t = DATA.traces[i];
+      return `<button class="tab${t.before ? ' before' : ''}" data-i="${i}">${esc(t.title || t.id)}</button>`;
+    }).join('')}</div></div>`).join('');
+  $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => go(+b.dataset.i, 0));
+}
+
+function colorFor(fn) {
+  if (!(fn in fnColor)) fnColor[fn] = COLORS[Object.keys(fnColor).length % COLORS.length];
+  return fnColor[fn];
+}
+
+function stepChanged(tr, i) {
+  const s = tr.steps[i], p = tr.steps[i - 1];
+  return s.returned.length > 0 || changes(p, s).length > 0;
+}
+
+function buildStrip() {
+  const tr = DATA.traces[traceIdx];
+  fnColor = {};
+  $('strip').innerHTML = tr.steps.map((s, i) =>
+    `<div data-i="${i}" style="background:${colorFor(s.fn)}" class="${stepChanged(tr, i) ? 'chg' : ''}" title="${i + 1}: ${esc(shortFn(s.fn))} line ${s.line}"></div>`).join('');
+  $('strip').querySelectorAll('div').forEach(d => d.onclick = () => go(traceIdx, +d.dataset.i));
+  $('legend').innerHTML = Object.entries(fnColor).map(([fn, c]) => `<span style="--c:${c}">${esc(shortFn(fn))}</span>`).join('') +
+    '<span style="--c:transparent">a dot marks a step that changed a value or returned one</span>';
+}
+
+function noteFor(s, text) {
+  return NOTES[`${shortFn(s.fn)}: ${text}`] ?? NOTES[text];
+}
+
+function show() {
+  const tr = DATA.traces[traceIdx];
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', +b.dataset.i === traceIdx));
+  const meta = DATA.meta || {};
+  const how = `Recorded with ${tr.go || 'go'} and Delve ${meta.dlv || '?'}: go test ${tr.pkg || ''} -run '${tr.run || ''}' ${(meta.test_flags || []).join(' ')}` +
+    Object.entries(tr.env || {}).map(([k, v]) => ` ${k}=${v}`).join('');
+  $('intro').innerHTML = (tr.summary ? `<p>${esc(tr.summary)}</p>` : '') + (tr.note ? `<p class="note">${esc(tr.note)}</p>` : '') +
+    `<p class="hint">${esc(how)}</p>`;
+  if (!tr.steps.length) {
+    $('count').textContent = 'no steps';
+    ['stack', 'where', 'code', 'happened', 'explain', 'vars', 'varsfn'].forEach(id => $(id).textContent = '');
+    $('code').innerHTML = '<p class="none" style="padding:0 12px">The trace never reached the entry function.</p>';
+    return;
+  }
+  const s = tr.steps[stepIdx], p = tr.steps[stepIdx - 1];
+  $('count').textContent = `step ${stepIdx + 1} of ${tr.steps.length}`;
+  document.querySelectorAll('#strip div').forEach((d, i) => d.classList.toggle('on', i === stepIdx));
+
+  // call stack, outermost first
+  const stack = [...s.stack].reverse().map(shortFn);
+  $('stack').innerHTML = 'Call stack: ' + stack.map((f, i) => i === stack.length - 1 ? `<b>${esc(f)}</b>` : esc(f)).join('<span class="sep">&rsaquo;</span>');
+  $('where').textContent = `${s.file}:${s.line}`;
+
+  // code
+  const src = tr.src[s.file] || {};
+  const changed = new Set(((DATA.changed || {})[tr.tree || 'default'] || {})[s.file] || []);
+  const ranLine = p && sameFrame(p, s) && p.line !== s.line ? p.line : null;
+  // Stopped after a call on this line returned: the line is part way done.
+  const mid = s.returned.length > 0;
+  let html = '';
+  for (let n = s.range[0]; n <= s.range[1]; n++) {
+    const line = src[n] ?? '';
+    const cls = ['ln', n === s.line ? 'cur' : '', n === ranLine ? 'ran' : '', changed.has(n) ? 'prline' : ''].join(' ');
+    const mark = n === s.line ? (mid ? '&#9655;' : '&#9654;') : n === ranLine ? '&#10003;' : '';
+    html += `<div class="${cls}" ${n === s.line ? 'id="curline"' : ''}><span class="no">${n}</span><span class="pr" title="${changed.has(n) ? 'differs from the base revision' : ''}">${changed.has(n) ? '+' : ''}</span><span class="mark">${mark}</span><span class="txt">${highlight(line.replace(/\t/g, '    '))}</span></div>`;
+  }
+  $('code').innerHTML = html + `<div class="hint" style="padding:6px 12px 0">${mid ? '&#9655; part way through this line: a call on it returned, the rest of the line (such as the assignment) runs next.' : '&#9654; runs next.'} &#10003; just ran.${changed.size ? ' <span style="color:var(--green)">+</span> differs from the base revision.' : ''}</div>`;
+  const cl = $('curline'); if (cl) cl.scrollIntoView({block: 'nearest'});
+
+  // what happened
+  const items = [];
+  if (p && s.stack.length > p.stack.length) {
+    const args = s.args.map(([n, v]) => `${n} = ${fmt1(v)}`).join(', ');
+    items.push(`Called <b>${esc(shortFn(s.fn))}</b>${args ? `(${esc(args)})` : '()'}`);
+  }
+  if (p && s.stack.length < p.stack.length) items.push(`Returned to <b>${esc(shortFn(s.fn))}</b>`);
+  for (const r of s.returned) {
+    const vals = r.values.map(v => (v.name && !v.name.startsWith('~') ? `${v.name} = ` : '') + fmt1(v)).join(', ');
+    items.push(`<b>${esc(r.fn)}</b> returned ${esc(vals)}`);
+  }
+  items.push(...changes(p, s));
+  if (!p) items.push('Stopped at the start of the function.');
+  $('happened').innerHTML = items.length ? `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>` : '<span class="none">Nothing changed.</span>';
+
+  // note on the line
+  const ex = noteFor(s, (src[s.line] || '').trim());
+  $('explain').innerHTML = ex ? `<p>${esc(ex)}</p>` : '<p class="empty">No note for this line.</p>';
+
+  // variables
+  $('varsfn').textContent = shortFn(s.fn);
+  const ch = changedNames(p, s);
+  const pv = p && sameFrame(p, s) ? vars(p) : new Map();
+  const rows = [...s.args.map(a => [...a, 'argument']), ...s.locals.map(l => [...l, 'local'])].map(([n, v, kind]) => {
+    const c = ch.get(n) || '';
+    const tag = c === 'new' ? '<span class="tag new">new</span>' : c === 'chg' ? '<span class="tag chg">changed</span>' : '';
+    return `<tr class="${c}"><td class="n">${esc(n)}${tag}<small>${kind}</small></td><td>${render(v, 0, pv.get(n))}</td></tr>`;
+  }).join('');
+  $('vars').innerHTML = rows ? `<table>${rows}</table>` : '<span class="none">none yet</span>';
+  history.replaceState(null, '', `#${tr.id}/${stepIdx + 1}`);
+}
+
+function go(t, i) {
+  const rebuild = t !== traceIdx || !$('strip').children.length;
+  traceIdx = t;
+  stepIdx = Math.max(0, Math.min(i, DATA.traces[t].steps.length - 1));
+  if (rebuild) buildStrip();
+  show();
+}
+
+function jumpChange(dir) {
+  const tr = DATA.traces[traceIdx];
+  for (let i = stepIdx + dir; i >= 0 && i < tr.steps.length; i += dir) if (stepChanged(tr, i)) return go(traceIdx, i);
+}
+
+if (DATA.title) { $('title').textContent = DATA.title; document.title = DATA.title; }
+$('sub').textContent = 'Real values from the Delve debugger, recorded while the tests ran.' + (DATA.revision ? ` Revision ${DATA.revision}.` : '');
+buildTabs();
+$('first').onclick = () => go(traceIdx, 0);
+$('last').onclick = () => go(traceIdx, 1e9);
+$('prev').onclick = () => go(traceIdx, stepIdx - 1);
+$('next').onclick = () => go(traceIdx, stepIdx + 1);
+$('prevchg').onclick = () => jumpChange(-1);
+$('nextchg').onclick = () => jumpChange(1);
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') { e.shiftKey ? jumpChange(1) : go(traceIdx, stepIdx + 1); e.preventDefault(); }
+  if (e.key === 'ArrowLeft') { e.shiftKey ? jumpChange(-1) : go(traceIdx, stepIdx - 1); e.preventDefault(); }
+  if (e.key === 'Home') go(traceIdx, 0);
+  if (e.key === 'End') go(traceIdx, 1e9);
+});
+{
+  const [id, n] = decodeURIComponent(location.hash.slice(1)).split('/');
+  const t = Math.max(0, DATA.traces.findIndex(x => x.id === id));
+  go(t, (+n || 1) - 1);
+}
+</script>
+
+<!--LIVE-->
+<!-- render.py writes the .version.js file named below next to this page.
+     A <script src> still loads from disk on file://, so the page polls it and
+     reloads only when a new build lands. The step stays in the URL hash.
+     render.py --share leaves this block out. -->
+<script>
+(() => {
+  const SRC = /*VERSION_JS*/"stepper.version.js";
+  const MS = 2000;
+  let seen = null;
+  const poll = () => {
+    if (document.visibilityState !== 'visible') return setTimeout(poll, MS);
+    const s = document.createElement('script');
+    s.src = SRC + '?' + Date.now();
+    s.onload = () => {
+      s.remove();
+      if (seen === null) seen = window.__stepperBuild;
+      else if (window.__stepperBuild !== seen) return location.reload();
+      setTimeout(poll, MS);
+    };
+    s.onerror = () => { s.remove(); setTimeout(poll, MS); };
+    document.head.appendChild(s);
+  };
+  poll();
+})();
+</script>
+<!--/LIVE-->
+</body>
+</html>

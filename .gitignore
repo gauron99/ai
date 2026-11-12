@@ -1,0 +1,8 @@
+# Jujutsu working-copy metadata
+/.jj/
+
+# OS / editor cruft
+.DS_Store
+*.swp
+*.swo
+*~

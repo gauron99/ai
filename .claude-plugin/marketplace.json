@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "gauron99",
+  "owner": {
+    "name": "gauron99",
+    "url": "https://github.com/gauron99"
+  },
+  "plugins": [
+    {
+      "name": "gauron",
+      "source": "./plugin",
+      "description": "my cross-project workflow skills (gauron)",
+      "version": "2.0.0"
+    }
+  ]
+}

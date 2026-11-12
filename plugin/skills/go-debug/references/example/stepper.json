@@ -1,0 +1,61 @@
+{
+  "title": "knative/func #4159: Docker Hub pull secrets",
+  "revision": "7c0ba1e",
+  "env": {"GOTOOLCHAIN": "go1.26.10"},
+  "trees": {
+    "default": {"path": "trees/head", "base": "trees/base"},
+    "nofix": {"path": "trees/nofix"}
+  },
+  "skip_types": ["CoreV1Interface", "[]knative.dev/func/vendor"],
+  "notes": "notes.json",
+  "renderers": "renderers.js",
+  "scenarios": [
+    {
+      "id": "dockerio",
+      "group": "#4159 Docker Hub pull secrets",
+      "title": "Secret keyed docker.io",
+      "summary": "A dockercfg pull secret keyed \"docker.io\", as kubectl create secret docker-registry --docker-server=docker.io writes it. This is the bug the PR fixes.",
+      "pkg": "./pkg/knative",
+      "run": "^TestCheckPullPermissions$/^dockerhub_as_docker\\.io$",
+      "entry": ["knative.dev/func/pkg/knative.checkPullPermissions",
+                "knative.dev/func/pkg/knative.configFileKeychain.Resolve"],
+      "skip": ["knative.dev/func/pkg/knative.isUnauthorized"]
+    },
+    {
+      "id": "dockerio-before",
+      "group": "#4159 Docker Hub pull secrets",
+      "title": "Secret keyed docker.io, without the fix",
+      "summary": "The same secret, with the canonicalizeDockerHubAuth call taken out. docker/cli v29.8.2 then finds nothing for Docker Hub, so func warns that no pull secret was found.",
+      "note": "Before the fix: a copy of this PR with only the canonicalizeDockerHubAuth(cf) line removed. docker/cli is v29.8.2, as after the bump.",
+      "before": true,
+      "tree": "nofix",
+      "pkg": "./pkg/knative",
+      "run": "^TestCheckPullPermissions$/^dockerhub_as_docker\\.io$",
+      "entry": ["knative.dev/func/pkg/knative.checkPullPermissions",
+                "knative.dev/func/pkg/knative.configFileKeychain.Resolve"],
+      "skip": ["knative.dev/func/pkg/knative.isUnauthorized"]
+    },
+    {
+      "id": "emptycanon",
+      "group": "#4159 Docker Hub pull secrets",
+      "title": "Empty canonical entry (dockerconfigjson)",
+      "summary": "A dockerconfigjson secret with an empty \"https://index.docker.io/v1/\" entry, as docker login writes it with a credential store, next to docker.io credentials.",
+      "pkg": "./pkg/knative",
+      "run": "^TestCheckPullPermissions$/^dockerhub_as_docker\\.io_next_to_an_empty_canonical_entry_in_dockerconfigjson$",
+      "entry": ["knative.dev/func/pkg/knative.checkPullPermissions",
+                "knative.dev/func/pkg/knative.configFileKeychain.Resolve"],
+      "skip": ["knative.dev/func/pkg/knative.isUnauthorized"]
+    },
+    {
+      "id": "canonical",
+      "group": "#4159 Docker Hub pull secrets",
+      "title": "Secret already under the canonical key",
+      "summary": "A secret keyed \"https://index.docker.io/v1/\", the key docker/cli looks up. Nothing needs copying, so canonicalizeDockerHubAuth returns at once.",
+      "pkg": "./pkg/knative",
+      "run": "^TestCheckPullPermissions$/^dockerhub_as_https://index\\.docker\\.io/v1/$",
+      "entry": ["knative.dev/func/pkg/knative.checkPullPermissions",
+                "knative.dev/func/pkg/knative.configFileKeychain.Resolve"],
+      "skip": ["knative.dev/func/pkg/knative.isUnauthorized"]
+    }
+  ]
+}
